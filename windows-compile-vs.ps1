@@ -671,4 +671,4 @@ pm-echo "Xdebug is included, but disabled by default. To enable it, change 'xdeb
 
 pm-echo "NOTE: You may need to install VC++ Redistributable for the binaries to work. Download it here: https://aka.ms/vs/16/release/vc_redist.x64.exe"
 pm-echo "PHP binary files installed in $outpath\bin"
-pm-echo "If the binary doesn't work, please report an issue at https://github.com/pmmp/PHP-Binaries and attach the `"compile.log`" file"
+pm-echo "If the binary doesn't work, please report an issue at https://github.com/npmmp/PHP-Binaries and attach the `"compile.log`" file"

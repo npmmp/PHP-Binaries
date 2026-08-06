@@ -3,17 +3,16 @@
 
 ## Prebuilt binaries
 ### Actively updated "latest" URLs
-- [PM5 default](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-latest)
-- [PM5 PHP 8.2](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-8.2-latest) (default for PM 5.10+)
-- [PM5 PHP 8.3](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-8.3-latest) (not officially supported, but works in PM 5.9+)
-- [PM5 PHP 8.4](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-8.4-latest) (not officially supported, but works in PM 5.33+)
+- [PM5 default](https://github.com/npmmp/PHP-Binaries/releases/tag/pm5-latest)
+- [PM5 PHP 8.2](https://github.com/npmmp/PHP-Binaries/releases/tag/pm5-php-8.2-latest) (default for PM 5.10+)
+- [PM5 PHP 8.3](https://github.com/npmmp/PHP-Binaries/releases/tag/pm5-php-8.3-latest) (not officially supported, but works in PM 5.9+)
+- [PM5 PHP 8.4](https://github.com/npmmp/PHP-Binaries/releases/tag/pm5-php-8.4-latest) (not officially supported, but works in PM 5.33+)
 
-### Legacy binaries, no longer updated
-- [PM4 PHP 8.0](https://github.com/pmmp/PHP-Binaries/releases/tag/pm4-php-8.0-latest) (default for PM 4.0+)
-- [PM4 PHP 8.1](https://github.com/pmmp/PHP-Binaries/releases/tag/pm4-php-8.1-latest) (default for PM 4.21+)
-- [PM4 PHP 8.2](https://github.com/pmmp/PHP-Binaries/releases/tag/pm4-php-8.2-latest) (never officially supported, but works in PM 4.12+)
-- [PM5 PHP 8.0](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-8.0-latest) (default for PM 5.0 alpha)
-- [PM5 PHP 8.1](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-8.1-latest) (default for PM 5.0+)
+- [PM4 PHP 8.0](https://github.com/npmmp/PHP-Binaries/releases/tag/pm4-php-8.0-latest) (default for PM 4.0+)
+- [PM4 PHP 8.1](https://github.com/npmmp/PHP-Binaries/releases/tag/pm4-php-8.1-latest) (default for PM 4.21+)
+- [PM4 PHP 8.2](https://github.com/npmmp/PHP-Binaries/releases/tag/pm4-php-8.2-latest) (never officially supported, but works in PM 4.12+)
+- [PM5 PHP 8.0](https://github.com/npmmp/PHP-Binaries/releases/tag/pm5-php-8.0-latest) (default for PM 5.0 alpha)
+- [PM5 PHP 8.1](https://github.com/npmmp/PHP-Binaries/releases/tag/pm5-php-8.1-latest) (default for PM 5.0+)
 
 ## compile.sh
 

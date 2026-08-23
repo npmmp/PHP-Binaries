@@ -564,10 +564,12 @@ if [ "$DO_OPTIMIZE" != "no" ]; then
 	fi
 	#clang does not understand the following and will fail
 	GCC_CFLAGS="$CFLAGS -funsafe-loop-optimizations -fpredictive-commoning -ftracer -ftree-loop-im -frename-registers -fcx-limited-range -funswitch-loops -fivopts -fno-gcse"
-	$CC $CFLAGS $GCC_CFLAGS -o test test.c >> "$DIR/install.log" 2>&1
-	if [ $? -eq 0 ]; then
+	$CC $CFLAGS $GCC_CFLAGS -o test test.c 2> /tmp/gcc_flags_test.txt
+	if [ $? -eq 0 ] && ! grep -q "unknown argument\|unknown option\|unsupported option\|unrecognized" /tmp/gcc_flags_test.txt; then
 		CFLAGS="$CFLAGS $GCC_CFLAGS"
 	fi
+	cat /tmp/gcc_flags_test.txt >> "$DIR/install.log" 2>&1
+	rm -f /tmp/gcc_flags_test.txt
 
 	# Test LTO support
 	if [ "$FLAGS_LTO" != "" ]; then

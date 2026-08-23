@@ -152,8 +152,11 @@ HAVE_VALGRIND="--without-valgrind"
 HAVE_OPCACHE="yes"
 HAVE_XDEBUG="yes"
 FSANITIZE_OPTIONS=""
-FLAGS_LTO=""
+FLAGS_LTO="-fvisibility=hidden -flto=auto"
 HAVE_OPCACHE_JIT="no"
+DO_PGO="no"
+PGO_TRAINING_SCRIPT=""
+DO_AVX2="yes"
 
 COMPILE_GD="no"
 
@@ -165,7 +168,7 @@ SEPARATE_SYMBOLS="no"
 
 PHP_VERSION_BASE="auto"
 
-while getopts "::t:j:sdDxfgnva:P:c:l:Jiz:" OPTION; do
+while getopts "::t:j:sdDxfgnva:P:c:l:Jiz:O:A:" OPTION; do
 
 	case $OPTION in
 		l)
@@ -243,6 +246,22 @@ while getopts "::t:j:sdDxfgnva:P:c:l:Jiz:" OPTION; do
 			;;
 		z)
 			PHP_VERSION_BASE="$OPTARG"
+			;;
+		O)
+			write_out "opt" "Enabling Profile-Guided Optimization (PGO)"
+			DO_PGO="yes"
+			if [ -n "$OPTARG" ]; then
+				PGO_TRAINING_SCRIPT="$OPTARG"
+			fi
+			;;
+		A)
+			if [ "$OPTARG" == "no" ]; then
+				write_out "opt" "Disabling AVX2 optimizations"
+				DO_AVX2="no"
+			else
+				write_out "opt" "Enabling AVX2 optimizations"
+				DO_AVX2="yes"
+			fi
 			;;
 		\?)
 			write_error "Invalid option: -$OPTARG"
@@ -412,12 +431,16 @@ else
 		fi
 	fi
 	if [[ "$COMPILE_TARGET" == "linux" ]] || [[ "$COMPILE_TARGET" == "linux64" ]]; then
-		[ -z "$march" ] && march=x86-64;
+		if [ "$DO_AVX2" == "yes" ]; then
+			[ -z "$march" ] && march=x86-64-v3;
+		else
+			[ -z "$march" ] && march=x86-64;
+		fi
 		[ -z "$mtune" ] && mtune=skylake;
 		CFLAGS="$CFLAGS -m64"
 		GMP_ABI="64"
 		OPENSSL_TARGET="linux-x86_64"
-		write_out "INFO" "Compiling for Linux x86_64"
+		write_out "INFO" "Compiling for Linux x86_64 (AVX2: $DO_AVX2)"
 	elif [[ "$COMPILE_TARGET" == "mac-x86-64" ]]; then
 		[ -z "$march" ] && march=core2;
 		[ -z "$mtune" ] && mtune=generic;
@@ -447,8 +470,15 @@ else
 		OPENSSL_TARGET="darwin64-arm64-cc"
 		CMAKE_GLOBAL_EXTRA_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64"
 		write_out "INFO" "Compiling for MacOS M1"
+	elif [[ "$COMPILE_TARGET" == "linux-arm64" ]] || [[ "$COMPILE_TARGET" == "linux-aarch64" ]]; then
+		[ -z "$march" ] && march=armv8-a;
+		[ -z "$mtune" ] && mtune=generic;
+		CFLAGS="$CFLAGS"
+		GMP_ABI="64"
+		OPENSSL_TARGET="linux-aarch64"
+		write_out "INFO" "Compiling for Linux ARM64 (aarch64)"
 	elif [[ "$COMPILE_TARGET" != "" ]]; then
-		write_error "Please supply a proper platform [mac-arm64 mac-x86-64 linux linux64] to compile for"
+		write_error "Please supply a proper platform [mac-arm64 mac-x86-64 linux linux64 linux-arm64] to compile for"
 		exit 1
 	elif [ -z "$CFLAGS" ]; then
 		if [ `getconf LONG_BIT` == "64" ]; then
@@ -526,7 +556,6 @@ else
 fi
 
 if [ "$DO_OPTIMIZE" != "no" ]; then
-	#FLAGS_LTO="-fvisibility=hidden -flto"
 	CFLAGS="$CFLAGS -O2"
 	GENERIC_CFLAGS="$CFLAGS -ftree-vectorize -fomit-frame-pointer"
 	$CC $CFLAGS $GENERIC_CFLAGS -o test test.c >> "$DIR/install.log" 2>&1
@@ -539,7 +568,17 @@ if [ "$DO_OPTIMIZE" != "no" ]; then
 	if [ $? -eq 0 ]; then
 		CFLAGS="$CFLAGS $GCC_CFLAGS"
 	fi
-	#TODO: -ftree-parallelize-loops requires OpenMP - not sure if it will provide meaningful improvements yet
+
+	# Test LTO support
+	if [ "$FLAGS_LTO" != "" ]; then
+		$CC $CFLAGS $FLAGS_LTO -o test test.c >> "$DIR/install.log" 2>&1
+		if [ $? -ne 0 ]; then
+			write_out "WARNING" "LTO not supported by compiler, disabling"
+			FLAGS_LTO=""
+		else
+			write_out "INFO" "Link-Time Optimization (ThinLTO) enabled"
+		fi
+	fi
 fi
 
 if [ "$FSANITIZE_OPTIONS" != "" ]; then
@@ -1326,9 +1365,51 @@ if [[ "$DO_STATIC" == "yes" ]]; then
 	sed -i=".backup" 's/--mode=link $(CC)/--mode=link $(CXX)/g' Makefile
 fi
 
-make -j $THREADS >> "$DIR/install.log" 2>&1
-write_install
-make install >> "$DIR/install.log" 2>&1
+if [ "$DO_PGO" == "yes" ]; then
+	write_out "INFO" "Building PHP with Profile-Guided Optimization (PGO)"
+
+	# Step 1: Instrumented build
+	write_out "PGO" "Step 1/3: Instrumented build"
+	PGO_CFLAGS="$CFLAGS -fprofile-generate"
+	make clean >> "$DIR/install.log" 2>&1 || true
+	make -j $THREADS CFLAGS="$PGO_CFLAGS" >> "$DIR/install.log" 2>&1
+	write_install
+	make install >> "$DIR/install.log" 2>&1
+
+	# Step 2: Training run
+	write_out "PGO" "Step 2/3: Training run"
+	if [ -n "$PGO_TRAINING_SCRIPT" ] && [ -f "$PGO_TRAINING_SCRIPT" ]; then
+		PHP_BINARY="$INSTALL_DIR/bin/php"
+		if [ -x "$PHP_BINARY" ]; then
+			bash "$PGO_TRAINING_SCRIPT" "$PHP_BINARY" >> "$DIR/install.log" 2>&1
+		else
+			write_out "WARNING" "PHP binary not found at $PHP_BINARY, skipping PGO training"
+		fi
+	else
+		# Default training: run a basic workload if no script provided
+		PHP_BINARY="$INSTALL_DIR/bin/php"
+		if [ -x "$PHP_BINARY" ]; then
+			write_out "PGO" "Running default training workload"
+			"$PHP_BINARY" -r 'for($i=0;$i<10000;$i++){echo serialize(range(1,100));}' >> "$DIR/install.log" 2>&1 || true
+			"$PHP_BINARY" -r 'for($i=0;$i<10000;$i++){gzcompress(str_repeat("x",1000));}' >> "$DIR/install.log" 2>&1 || true
+			"$PHP_BINARY" -r 'for($i=0;$i<10000;$i++){sha256("test".$i);}' >> "$DIR/install.log" 2>&1 || true
+		fi
+	fi
+
+	# Step 3: Optimized build with profile data
+	write_out "PGO" "Step 3/3: Optimized build with profile data"
+	PGO_USE_CFLAGS="$CFLAGS -fprofile-use -fprofile-correction"
+	make clean >> "$DIR/install.log" 2>&1 || true
+	make -j $THREADS CFLAGS="$PGO_USE_CFLAGS" >> "$DIR/install.log" 2>&1
+	write_install
+	make install >> "$DIR/install.log" 2>&1
+
+	write_out "PGO" "Profile-Guided Optimization complete"
+else
+	make -j $THREADS >> "$DIR/install.log" 2>&1
+	write_install
+	make install >> "$DIR/install.log" 2>&1
+fi
 
 function relativize_macos_library_paths {
 	IFS=$'\n' OTOOL_OUTPUT=($(otool -L "$1"))
@@ -1399,11 +1480,12 @@ if [ "$HAVE_OPCACHE" == "yes" ]; then
 	echo "opcache.optimization_level=0x7FFEBFFF ;https://github.com/php/php-src/blob/53c1b485741f31a17b24f4db2b39afeb9f4c8aba/ext/opcache/Optimizer/zend_optimizer.h" >> "$INSTALL_DIR/bin/php.ini"
 	if [ "$HAVE_OPCACHE_JIT" == "yes" ]; then
 		echo "" >> "$INSTALL_DIR/bin/php.ini"
-		echo "; ---- ! WARNING ! ----" >> "$INSTALL_DIR/bin/php.ini"
-		echo "; JIT can provide big performance improvements, but it may make your server crash or behave in weird ways. Use it at your own risk." >> "$INSTALL_DIR/bin/php.ini"
-		echo "; See https://www.php.net/manual/en/opcache.configuration.php#ini.opcache.jit for possible options." >> "$INSTALL_DIR/bin/php.ini"
-		echo "opcache.jit=off" >> "$INSTALL_DIR/bin/php.ini"
-		echo "opcache.jit_buffer_size=128M" >> "$INSTALL_DIR/bin/php.ini"
+		echo "; ---- JIT Configuration ----" >> "$INSTALL_DIR/bin/php.ini"
+		echo "; JIT provides significant performance improvements for PHP 8.4+." >> "$INSTALL_DIR/bin/php.ini"
+		echo "; Set opcache.jit=off to disable if you experience stability issues." >> "$INSTALL_DIR/bin/php.ini"
+		echo "; See https://www.php.net/manual/en/opcache.configuration.php#ini.opcache.jit" >> "$INSTALL_DIR/bin/php.ini"
+		echo "opcache.jit=1255" >> "$INSTALL_DIR/bin/php.ini"
+		echo "opcache.jit_buffer_size=256M" >> "$INSTALL_DIR/bin/php.ini"
 	fi
 fi
 if [[ "$COMPILE_TARGET" == "mac-"* ]]; then

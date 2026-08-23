@@ -4,7 +4,17 @@ on:
   push:
     branches: "**"
     tags-ignore: "**"
+    paths-ignore:
+      - "*.md"
+      - "LICENSE"
+      - ".gitattributes"
+      - ".gitignore"
   pull_request:
+    paths-ignore:
+      - "*.md"
+      - "LICENSE"
+      - ".gitattributes"
+      - ".gitignore"
   workflow_dispatch:
 
 concurrency:

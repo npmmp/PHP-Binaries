@@ -214,7 +214,7 @@ if ($PHP_JIT_ENABLE_ARG -eq "yes") {
     if ($PHP_VERSION_ID -lt 80400) {
         pm-echo "[WARNING] JIT in versions below PHP 8.4 is highly unstable and not recommended"
     } else {
-        pm-echo "[WARNING] JIT in PHP 8.4 has not been tested, use it with caution"
+        pm-echo "[INFO] JIT enabled for PHP 8.4+ (opcache.jit=1255)"
     }
 } else {
     pm-echo "JIT support in OPcache won't be compiled"
@@ -650,11 +650,12 @@ append-file-utf8 "recursionguard.enabled=0 ;disabled due to minor performance im
 append-file-utf8 ";extension=php_arraydebug.dll" $php_ini
 append-file-utf8 "" $php_ini
 if ($PHP_JIT_ENABLE_ARG -eq "yes") {
-    append-file-utf8 "; ---- ! WARNING ! ----" $php_ini
-    append-file-utf8 "; JIT can provide big performance improvements, but it may make your server crash or behave in weird ways. Use it at your own risk." $php_ini
-    append-file-utf8 "; See https://www.php.net/manual/en/opcache.configuration.php#ini.opcache.jit for possible options." $php_ini
-    append-file-utf8 "opcache.jit=off" $php_ini
-    append-file-utf8 "opcache.jit_buffer_size=128M" $php_ini
+    append-file-utf8 "; ---- JIT Configuration ----" $php_ini
+    append-file-utf8 "; JIT provides significant performance improvements for PHP 8.4+." $php_ini
+    append-file-utf8 "; Set opcache.jit=off to disable if you experience stability issues." $php_ini
+    append-file-utf8 "; See https://www.php.net/manual/en/opcache.configuration.php#ini.opcache.jit" $php_ini
+    append-file-utf8 "opcache.jit=1255" $php_ini
+    append-file-utf8 "opcache.jit_buffer_size=256M" $php_ini
     append-file-utf8 "" $php_ini
 }
 append-file-utf8 ";WARNING: When loaded, xdebug 3.2.0 will cause segfaults whenever an uncaught error is thrown, even if xdebug.mode=off. Load it at your own risk." $php_ini

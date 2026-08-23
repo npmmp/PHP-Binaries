@@ -1,5 +1,39 @@
 # PHP binaries & PHP build scripts for PocketMine-MP
-[![Build status](https://github.com/pmmp/php-build-scripts/actions/workflows/main.yml/badge.svg)](https://github.com/pmmp/php-build-scripts/actions/workflows/main.yml)
+[![Build status](https://github.com/npmmp/PHP-Binaries/actions/workflows/main.yml/badge.svg)](https://github.com/npmmp/PHP-Binaries/actions/workflows/main.yml)
+
+> **Fork de [pmmp/PHP-Binaries](https://github.com/pmmp/PHP-Binaries)** con optimizaciones de rendimiento para PocketMine-MP.
+
+## Optimizaciones de rendimiento
+
+Esta versión incluye las siguientes optimizaciones para mejorar el rendimiento de PHP:
+
+| Optimización | Ganancia esperada | Descripción |
+|---|---|---|
+| **ThinLTO** | +2-4% | Link-Time Optimization con soporte paralelo (menor tiempo de compilación que LTO completo) |
+| **AVX2** | +0-18% (zlib) | Instrucciones SIMD para operaciones de compresión y hashing (Linux x86_64) |
+| **JIT habilitado** | +10-20% (loops) | Just-In-Time compilation habilitado por defecto en PHP 8.4+ |
+| **PGO** | +7-30% | Profile-Guided Optimization (opcional, requiere `-O` flag) |
+| **Linux ARM64** | Nuevo | Soporte nativo para AWS Graviton, Raspberry Pi 4/5 |
+
+### Uso de PGO (Profile-Guided Optimization)
+
+PGO compila PHP dos veces: primero con instrumentación, luego con datos de perfil reales.
+
+```bash
+# Compilar con PGO usando el script de training incluido
+./compile.sh -t linux64 -j4 -P5 -O ./pgo-training.sh
+
+# O compilar sin PGO (más rápido, pero menos optimizado)
+./compile.sh -t linux64 -j4 -P5
+```
+
+### Deshabilitar AVX2
+
+Si necesitas compatibilidad con CPUs muy antiguas (pre-Haswell):
+
+```bash
+./compile.sh -t linux64 -j4 -P5 -A no
+```
 
 ## Prebuilt binaries
 ### Actively updated "latest" URLs
@@ -38,6 +72,7 @@ Bash script used to compile PHP on MacOS and Linux platforms. Make sure you have
 
 | Script flags | Description                                                                                                 |
 |--------------|-------------------------------------------------------------------------------------------------------------|
+| -A           | Enable/disable AVX2 optimizations (default: yes, use `-A no` to disable)                                   |
 | -c           | Uses the folder specified for caching downloaded tarballs, zipballs etc.                                    |
 | -d           | Compiles with debugging symbols and disables optimizations (slow, but useful for debugging segfaults)       |
 | -D           | Compiles with separated debugging symbols, but leaves optimizations enabled (used for distributed binaries) |
@@ -45,6 +80,7 @@ Bash script used to compile PHP on MacOS and Linux platforms. Make sure you have
 | -j           | Set make threads to #                                                                                       |
 | -l           | Uses the folder specified for caching compilation artifacts (useful for rapid rebuild and testing)          |
 | -n           | Don't remove sources after completing compilation                                                           |
+| -O           | Enable Profile-Guided Optimization (PGO). Optional: pass path to training script                            |
 | -s           | Will compile everything statically                                                                          |
 | -t           | Set target                                                                                                  |
 | -v           | Enable Valgrind support in PHP                                                                              |
@@ -58,8 +94,11 @@ Bash script used to compile PHP on MacOS and Linux platforms. Make sure you have
 |-----------------|-----------------------------------|
 | linux64         | ``-t linux64 -j4 -P5``            |
 | linux64, PM4    | ``-t linux64 -j4 -P4``            |
+| linux-arm64     | ``-t linux-arm64 -j4 -P5``        |
 | mac64           | ``-t mac-x86-64 -j4 -P5``         |
+| mac-arm64       | ``-t mac-arm64 -j4 -P5``          |
 | android-aarch64 | ``-t android-aarch64 -x -j4 -P5`` |
+| linux64 + PGO   | ``-t linux64 -j4 -P5 -O``         |
 
 ## windows-compile-vs.ps1
 

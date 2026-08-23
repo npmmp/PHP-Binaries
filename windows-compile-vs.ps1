@@ -646,13 +646,10 @@ sdk-command "configure^`
     --with-pdo-sqlite^`
     --without-readline $pgo_generate_flag"
 
-# Add brotli to LIB path so the linker finds libbrotlidec/libbrotlicommon
-# when linking libcurl_a.lib which has Brotli symbols
-$env:LIB = "$DEPS_DIR\lib;$env:LIB"
-$env:EXTRA_LIBS = "libbrotlidec.lib libbrotlicommon.lib"
-
 write-compile
-sdk-command "nmake"
+# Set LIB inside SDK sandbox so linker finds brotli (libbrotlidec/libbrotlicommon)
+# needed because libcurl_a.lib was built with Brotli support
+sdk-command "set LIB=$DEPS_DIR\lib;%LIB% && nmake"
 
 if ($PHP_PGO -eq 1) {
     # Step 2: Run training on instrumented build
@@ -732,7 +729,7 @@ if ($PHP_PGO -eq 1) {
         --with-pdo-mysql^`
         --with-pdo-sqlite^`
         --without-readline $pgo_use_flag"
-    sdk-command "nmake"
+    sdk-command "set LIB=$DEPS_DIR\lib;%LIB% && nmake"
     pm-echo "PGO: Optimized build complete"
 }
 

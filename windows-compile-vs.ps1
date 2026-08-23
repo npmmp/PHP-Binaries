@@ -314,7 +314,7 @@ function download-sdk {
 }
 
 function sdk-command {
-    param ([string] $command, [string] $errorMessage = "")
+    param ([string] $command, [string] $errorMessage = "", [switch] $continueOnError)
 
     New-Item task.bat -Value $command >> $log_file 2>&1
     echo "Running SDK command: $command" >> $log_file
@@ -323,7 +323,11 @@ function sdk-command {
     (& cmd.exe /c $wrap) >> $log_file
     $result=$LASTEXITCODE
     if ($result -ne 0) {
-        if ($errorMessage -eq "") {
+        if ($continueOnError) {
+            if ($errorMessage -ne "") {
+                pm-echo "[WARNING] $errorMessage"
+            }
+        } elseif ($errorMessage -eq "") {
             pm-fatal-error "Error code $result running SDK build command"
         } else {
             pm-fatal-error $errorMessage
@@ -600,9 +604,7 @@ sdk-command "configure^`
 
 write-compile
 # First nmake may fail due to missing Brotli libs - that's expected.
-# sdk-command calls pm-fatal-error (exit 1) on failure, so we pass
-# an error message to suppress the fatal error and continue.
-sdk-command "nmake" "First nmake completed (may have Brotli link errors)"
+sdk-command "nmake" "" -continueOnError
 
 # Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
 # library itself is not auto-linked. Patch Makefile and re-link.

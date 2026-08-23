@@ -14,6 +14,8 @@ concurrency:
 jobs:
   all-builds:
     name: PM${{ matrix.pm-version-major }} - PHP ${{ matrix.php-version-base }}
+    permissions:
+      contents: write
     strategy:
       matrix:
         include:

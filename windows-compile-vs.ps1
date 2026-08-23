@@ -512,6 +512,25 @@ $DEPS_DIR="$BASE_PATH\deps-php-$PHP_VERSION_BASE-$($OUT_PATH_REL.ToLower())"
 #a bit annoying because this part of the build is slow and makes it take longer to find problems
 download-php-deps
 
+# Fix: PHP SDK deps for 8.2+ include libcurl built with Brotli support, but
+# phpsdk_deps extracts brotli to deps/brotli-X.Y.Z-vs16-x64/lib/ while
+# PHP's linker only searches deps/lib/. Copy brotli .lib files to deps/lib/.
+if ([int]($PHP_VERSION_BASE -replace '\..*') -ge 8 -and [int]($PHP_VERSION_BASE -replace '\d+\.') -ge 2) {
+    $brotli_dirs = Get-ChildItem -Path $DEPS_DIR -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "brotli" }
+    foreach ($dir in $brotli_dirs) {
+        $libDir = Join-Path $dir.FullName "lib"
+        if (Test-Path $libDir) {
+            Get-ChildItem -Path $libDir -Filter "*.lib" -ErrorAction SilentlyContinue | ForEach-Object {
+                $dest = Join-Path "$DEPS_DIR\lib" $_.Name
+                if (-not (Test-Path $dest)) {
+                    Copy-Item $_.FullName $dest -Force >> $log_file 2>&1
+                    pm-echo "Copied $($_.Name) from $($dir.Name) to deps/lib"
+                }
+            }
+        }
+    }
+}
+
 mkdir $LIB_BUILD_DIR >> $log_file 2>&1
 cd $LIB_BUILD_DIR >> $log_file 2>&1
 

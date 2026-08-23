@@ -1,0 +1,14 @@
+name: Simple reusable
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: echo "Hello ${{ inputs.name }}"

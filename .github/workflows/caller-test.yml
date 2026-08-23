@@ -1,0 +1,10 @@
+name: Caller test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call:
+    uses: ./.github/workflows/simple-reusable-test.yml
+    with:
+      name: "world"

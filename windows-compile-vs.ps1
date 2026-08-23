@@ -598,6 +598,19 @@ sdk-command "configure^`
     --with-pdo-sqlite^`
     --without-readline $pgo_generate_flag"
 
+# Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
+# library itself is not auto-linked by PHP's configure. Add it manually to the Makefile.
+$sdk_brotli_fix = "powershell -Command `"^
+    `$makefile = Get-ChildItem -Path `"$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS`" -Recurse -Filter 'Makefile' | Select-Object -First 1; ^
+    if (`$makefile) { ^
+        `$content = Get-Content `$makefile.FullName -Raw; ^
+        `$content = `$content -replace 'libcurl_a\.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib'; ^
+        Set-Content `$makefile.FullName -Value `$content; ^
+        Write-Host 'Added Brotli libraries to Makefile link command' ^
+    } ^
+`""
+sdk-command $sdk_brotli_fix
+
 write-compile
 sdk-command "nmake"
 
@@ -679,6 +692,8 @@ if ($PHP_PGO -eq 1) {
         --with-pdo-mysql^`
         --with-pdo-sqlite^`
         --without-readline $pgo_use_flag"
+    # Fix Brotli libraries for PGO rebuild too
+    sdk-command $sdk_brotli_fix
     sdk-command "nmake"
     pm-echo "PGO: Optimized build complete"
 }

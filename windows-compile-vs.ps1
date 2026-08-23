@@ -518,7 +518,7 @@ download-php-deps
 if ([int]($PHP_VERSION_BASE -replace '\..*') -ge 8 -and [int]($PHP_VERSION_BASE -replace '\d+\.') -ge 2) {
     $brotli_url = "https://windows.php.net/downloads/php-sdk/deps/vs16/x64/brotli-1.2.0-vs16-x64.zip"
     $brotli_dest = "$DEPS_DIR\brotli-temp"
-    $found = Get-ChildItem -Path "$DEPS_DIR\lib" -Filter "libbrotlidec*" -ErrorAction SilentlyContinue | Select-Object -First 1
+    $found = Get-ChildItem -Path "$DEPS_DIR\lib" -Filter "brotlidec*" -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $found) {
         pm-echo "Downloading brotli library for Brotli support in curl..."
         try {

@@ -27,12 +27,9 @@ jobs:
   android:
     name: Android arm64
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
 
       - name: Install tools and dependencies
         run: |
@@ -44,8 +41,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./download_cache
-          key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-${{ runner.os }}-
+          key: compile-sh-cache-ssl-https-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-ssl-https-
 
       - name: Fetch compiler cache
         id: compiler-cache
@@ -53,7 +50,6 @@ jobs:
         with:
           path: ${{ github.workspace }}/compiler
           key: musl-cross-make-${{ env.MUSL_CROSS_MAKE_VERSION }}
-          restore-keys: musl-cross-make-
 
       - name: Checkout musl-cross-make
         if: steps.compiler-cache.outputs.cache-hit != 'true'
@@ -79,10 +75,9 @@ jobs:
           # Used "set -ex" instead of hashbang since script isn't executed with hashbang
           set -ex
           trap "exit 1" ERR
-          # PGO not supported for cross-compile (Android), build without it
           ./compile.sh -t android-aarch64 -x -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
         
-    
+      
       - name: Create tarball
         run: |
           tar -czf ./PHP-${{ inputs.php-version-base }}-Android-arm64-PM${{ inputs.pm-version-major }}.tar.gz bin
@@ -98,7 +93,6 @@ jobs:
             install.log
             compile.sh
           if-no-files-found: error
-          retention-days: 30
 
       - name: Prepare workspace for upload
         if: failure()
@@ -112,17 +106,13 @@ jobs:
           path: |
             workspace.tar.gz
           if-no-files-found: error
-          retention-days: 7
 
   linux:
     name: Linux
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
 
       - name: Install tools and dependencies
         run: |
@@ -134,16 +124,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./download_cache
-          key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-${{ runner.os }}-
+          key: compile-sh-cache-ssl-https-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-ssl-https-
 
-      - name: Compile PHP with PGO
+      - name: Compile PHP
         run: |
           # Used "set -ex" instead of hashbang since script isn't executed with hashbang
           set -ex
           trap "exit 1" ERR
-          # PGO enabled: builds instrumented PHP, runs training, then rebuilds with profile data
-          ./compile.sh -t linux64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
+          ./compile.sh -t linux64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
 
       - name: Create tarball
         run: |
@@ -160,7 +149,6 @@ jobs:
             install.log
             compile.sh
           if-no-files-found: error
-          retention-days: 30
 
       - name: Prepare workspace for upload
         if: failure()
@@ -174,73 +162,10 @@ jobs:
           path: |
             workspace.tar.gz
           if-no-files-found: error
-          retention-days: 7
-
-  linux-arm64:
-    name: Linux ARM64
-    runs-on: ubuntu-22.04-arm
-    timeout-minutes: 180
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
-
-      - name: Install tools and dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install make autoconf automake libtool libtool-bin m4 wget libc-bin gzip bzip2 bison g++ git re2c
-
-      - name: Prepare compile.sh download cache
-        id: download-cache
-        uses: actions/cache@v4
-        with:
-          path: ./download_cache
-          key: compile-sh-cache-${{ runner.os }}-arm64-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-${{ runner.os }}-arm64-
-
-      - name: Compile PHP with PGO
-        run: |
-          set -ex
-          trap "exit 1" ERR
-          # PGO enabled: builds instrumented PHP, runs training, then rebuilds with profile data
-          ./compile.sh -t linux-arm64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
-
-      - name: Create tarball
-        run: |
-          tar -czf ./PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}.tar.gz bin
-          tar -czf ./Z-PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}-debugging-symbols.tar.gz bin-debug
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v5
-        if: always()
-        with:
-          name: PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}
-          path: |
-            ./*PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}*.tar.gz
-            install.log
-            compile.sh
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Prepare workspace for upload
-        if: failure()
-        run: tar -czf workspace.tar.gz install_data
-
-      - name: Upload workspace
-        uses: actions/upload-artifact@v5
-        if: failure()
-        with:
-          name: PHP-${{ inputs.php-version-base }}-Linux-arm64-workspace-PM${{ inputs.pm-version-major }}
-          path: |
-            workspace.tar.gz
-          if-no-files-found: error
-          retention-days: 7
 
   macos:
     name: MacOS ${{ matrix.artifact-name }}
     runs-on: ${{ matrix.image }}
-    timeout-minutes: 180
     strategy:
       matrix:
         include:
@@ -253,8 +178,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
       
       - name: Install tools and dependencies
         run: |
@@ -267,16 +190,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./download_cache
-          key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-${{ runner.os }}-
+          key: compile-sh-cache-ssl-https-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-ssl-https-
 
-      - name: Compile PHP with PGO
+      - name: Compile PHP
         run: |
           export PATH="/usr/local/opt/bison/bin:$PATH"
           set -ex
           trap "exit 1" ERR
-          # PGO enabled: builds instrumented PHP, runs training, then rebuilds with profile data
-          ./compile.sh -t ${{ matrix.target-name }} -j4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
+          ./compile.sh -t ${{ matrix.target-name }} -j4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
           
       - name: Create tarball
         run: |
@@ -293,7 +215,6 @@ jobs:
             install.log
             compile.sh
           if-no-files-found: error
-          retention-days: 30
 
       - name: Prepare workspace for upload
         if: failure()
@@ -307,33 +228,28 @@ jobs:
           path: |
             workspace.tar.gz
           if-no-files-found: error
-          retention-days: 7
 
   windows:
     name: Windows
     runs-on: windows-2022
-    timeout-minutes: 240
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
 
       - name: Prepare download cache
         id: download-cache
         uses: actions/cache@v4
         with:
           path: ./download_cache
-          key: windows-cache-${{ runner.os }}-${{ hashFiles('./windows-compile-vs.ps1') }}
-          restore-keys: windows-cache-${{ runner.os }}-
+          key: windows-cache-${{ hashFiles('./windows-compile-vs.ps1') }}
+          restore-keys: windows-cache-
 
-      - name: Compile PHP with PGO
+      - name: Compile PHP
         run: .\windows-compile-vs.ps1
         env:
           SOURCES_PATH: ${{ github.workspace }}\pocketmine-php-sdk
           PM_VERSION_MAJOR: ${{ inputs.pm-version-major }}
           PHP_VERSION_BASE: ${{ inputs.php-version-base }}
-          PHP_PGO: 1
 
       - name: Prepare artifacts
         run: |
@@ -352,12 +268,11 @@ jobs:
             compile.log
             windows-compile-vs.bat
           if-no-files-found: error
-          retention-days: 30
 
 
   publish:
     name: Publish binaries
-    needs: [linux, linux-arm64, macos, windows, android]
+    needs: [linux, macos, windows, android]
     runs-on: ubuntu-22.04
     if: ${{ github.ref_name == 'stable' && github.ref_type == 'branch' && !contains(github.event.head_commit.message, '[no release]') }}
     concurrency: release-${{ inputs.php-version-base }}-pm${{ inputs.pm-version-major }}
@@ -367,8 +282,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
 
       - name: Update latest tag target
         run: |
@@ -393,7 +306,6 @@ jobs:
           name: PHP-${{ inputs.php-version-base }}.gdbinit
           path: |
             ${{ github.workspace }}/*.gdbinit
-          retention-days: 30
 
       - name: Generate release notes
         run: |
@@ -405,8 +317,6 @@ jobs:
           echo -e "\n\n\n" >> changelog.md
           echo ":information_source: **Linux/MacOS users**: Please see [this page](https://doc.pmmp.io/en/rtfd/faq/installation/opcache.so.html) to fix extension loading errors. Also, check out the [PocketMine-MP Linux/MacOS installer](https://doc.pmmp.io/en/rtfd/installation/get-dot-pmmp-dot-io.html)." >> changelog.md
           echo ":warning: **Windows users**: Don't forget to install [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) or the binary will not work!" >> changelog.md
-          echo -e "\n\n\n" >> changelog.md
-          echo ":zap: **Performance**: This build includes ThinLTO, AVX2, PGO (Profile-Guided Optimization), and JIT enabled by default." >> changelog.md
           echo -e "\n\n\n" >> changelog.md
 
           if [[ "${{ inputs.special-release }}" != "none" ]]; then

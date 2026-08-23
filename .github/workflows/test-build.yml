@@ -1,0 +1,16 @@
+name: Test Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Test
+        run: echo "Build works!"

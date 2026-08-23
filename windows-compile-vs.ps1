@@ -513,19 +513,20 @@ $DEPS_DIR="$BASE_PATH\deps-php-$PHP_VERSION_BASE-$($OUT_PATH_REL.ToLower())"
 download-php-deps
 
 # Fix: PHP SDK deps for 8.2+ include libcurl built with Brotli support,
-# but the Brotli libraries aren't in the deps lib dir where the linker expects them.
-# Copy them from the brotli package to the deps lib dir.
+# but the Brotli libraries aren't in deps/lib/ where the linker expects them.
+# Search for brotli .lib files anywhere in the deps tree and copy them to lib/.
 if ($PHP_VERSION_BASE -ge "8.2") {
-    $brotli_search = Get-ChildItem -Path "$DEPS_DIR" -Filter "libbrotlidec*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $brotli_search) {
-        $brotli_pkg = Get-ChildItem -Path "$DEPS_DIR" -Filter "brotli*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($brotli_pkg) {
-            $brotli_dir = $brotli_pkg.DirectoryName
-            Get-ChildItem -Path $brotli_dir -Filter "*.lib" -ErrorAction SilentlyContinue | ForEach-Object {
-                Copy-Item $_.FullName "$DEPS_DIR\lib\" -Force >> $log_file 2>&1
-                pm-echo "Copied $($_.Name) to deps lib directory"
+    $brotli_libs = Get-ChildItem -Path "$DEPS_DIR" -Filter "*.lib" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "brotli" }
+    if ($brotli_libs) {
+        foreach ($lib in $brotli_libs) {
+            $dest = "$DEPS_DIR\lib\$($lib.Name)"
+            if (-not (Test-Path $dest)) {
+                Copy-Item $lib.FullName $dest -Force >> $log_file 2>&1
+                pm-echo "Copied $($lib.Name) from $($lib.DirectoryName) to deps lib"
             }
         }
+    } else {
+        pm-echo "[WARNING] No brotli .lib files found in deps tree"
     }
 }
 

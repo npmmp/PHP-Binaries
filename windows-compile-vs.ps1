@@ -602,12 +602,22 @@ write-compile
 sdk-command "nmake"
 
 # Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
-# library itself is not auto-linked by PHP's configure. This causes LNK2001 errors
-# for BrotliDecoderVersion etc. We patch the Makefile AFTER nmake first builds
-# the object files, then re-run nmake to link successfully.
-$sdk_brotli_cmd = "cmd /c `"powershell -NoProfile -Command `"Get-ChildItem -Path . -Filter Makefile -Recurse | ForEach-Object { `$c = Get-Content `$_.FullName -Raw; if (`$c -match 'libcurl_a\.lib') { `$c = `$c.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib'); Set-Content `$_.FullName -Value `$c; Write-Host BrotliLibsPatched } }`"`""
-sdk-command $sdk_brotli_cmd
-sdk-command "nmake"
+# library itself is not auto-linked. Patch Makefile and re-link.
+$php_build_dir = "$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS"
+$found = Get-ChildItem -Path $php_build_dir -Filter "Makefile" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($found) {
+    $content = Get-Content $found.FullName -Raw
+    if ($content -match 'libcurl_a\.lib' -and $content -notmatch 'libbrotlidec') {
+        $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
+        Set-Content $found.FullName -Value $content
+        pm-echo "Added Brotli libraries to Makefile: $($found.FullName)"
+        sdk-command "nmake"
+    } else {
+        pm-echo "[WARNING] libcurl_a.lib not found or Brotli already patched in Makefile"
+    }
+} else {
+    pm-echo "[WARNING] Makefile not found under $php_build_dir"
+}
 
 if ($PHP_PGO -eq 1) {
     # Step 2: Run training on instrumented build
@@ -687,9 +697,17 @@ if ($PHP_PGO -eq 1) {
         --with-pdo-mysql^`
         --with-pdo-sqlite^`
         --without-readline $pgo_use_flag"
-    # Fix Brotli libraries for PGO rebuild too
-    sdk-command $sdk_brotli_cmd
     sdk-command "nmake"
+    # Fix Brotli for PGO rebuild too
+    $found = Get-ChildItem -Path $php_build_dir -Filter "Makefile" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($found) {
+        $content = Get-Content $found.FullName -Raw
+        if ($content -match 'libcurl_a\.lib' -and $content -notmatch 'libbrotlidec') {
+            $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
+            Set-Content $found.FullName -Value $content
+            sdk-command "nmake"
+        }
+    }
     pm-echo "PGO: Optimized build complete"
 }
 

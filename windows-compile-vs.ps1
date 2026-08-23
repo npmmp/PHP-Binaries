@@ -512,24 +512,6 @@ $DEPS_DIR="$BASE_PATH\deps-php-$PHP_VERSION_BASE-$($OUT_PATH_REL.ToLower())"
 #a bit annoying because this part of the build is slow and makes it take longer to find problems
 download-php-deps
 
-# Fix: PHP SDK deps for 8.2+ include libcurl built with Brotli support,
-# but the Brotli libraries aren't in deps/lib/ where the linker expects them.
-# Search for brotli .lib files anywhere in the deps tree and copy them to lib/.
-if ($PHP_VERSION_BASE -ge "8.2") {
-    $brotli_libs = Get-ChildItem -Path "$DEPS_DIR" -Filter "*.lib" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "brotli" }
-    if ($brotli_libs) {
-        foreach ($lib in $brotli_libs) {
-            $dest = "$DEPS_DIR\lib\$($lib.Name)"
-            if (-not (Test-Path $dest)) {
-                Copy-Item $lib.FullName $dest -Force >> $log_file 2>&1
-                pm-echo "Copied $($lib.Name) from $($lib.DirectoryName) to deps lib"
-            }
-        }
-    } else {
-        pm-echo "[WARNING] No brotli .lib files found in deps tree"
-    }
-}
-
 mkdir $LIB_BUILD_DIR >> $log_file 2>&1
 cd $LIB_BUILD_DIR >> $log_file 2>&1
 
@@ -621,26 +603,7 @@ sdk-command "configure^`
     --without-readline $pgo_generate_flag"
 
 write-compile
-# First nmake may fail due to missing Brotli libs - that's expected.
-sdk-command "nmake" "" -continueOnError
-
-# Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
-# library itself is not auto-linked. Patch Makefile and re-link.
-$php_build_dir = "$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS"
-$found = Get-ChildItem -Path $php_build_dir -Filter "Makefile" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($found) {
-    $content = Get-Content $found.FullName -Raw
-    if ($content -match 'libcurl_a\.lib' -and $content -notmatch 'libbrotlidec') {
-        $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
-        Set-Content $found.FullName -Value $content
-        pm-echo "Added Brotli libraries to Makefile: $($found.FullName)"
-        sdk-command "nmake"
-    } else {
-        pm-echo "[WARNING] libcurl_a.lib not found or Brotli already patched in Makefile"
-    }
-} else {
-    pm-echo "[WARNING] Makefile not found under $php_build_dir"
-}
+sdk-command "nmake"
 
 if ($PHP_PGO -eq 1) {
     # Step 2: Run training on instrumented build
@@ -721,16 +684,6 @@ if ($PHP_PGO -eq 1) {
         --with-pdo-sqlite^`
         --without-readline $pgo_use_flag"
     sdk-command "nmake"
-    # Fix Brotli for PGO rebuild too
-    $found = Get-ChildItem -Path $php_build_dir -Filter "Makefile" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($found) {
-        $content = Get-Content $found.FullName -Raw
-        if ($content -match 'libcurl_a\.lib' -and $content -notmatch 'libbrotlidec') {
-            $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
-            Set-Content $found.FullName -Value $content
-            sdk-command "nmake"
-        }
-    }
     pm-echo "PGO: Optimized build complete"
 }
 

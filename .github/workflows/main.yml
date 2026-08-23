@@ -2,8 +2,8 @@ name: Build and publish PHP binaries
 
 on:
   push:
-    branches: "**"
-    tags-ignore: "**"
+    branches: ["**"]
+    tags-ignore: ["**"]
   pull_request:
   workflow_dispatch:
 
@@ -21,7 +21,7 @@ jobs:
             php-version-base: "8.1"
           - pm-version-major: 5
             php-version-base: "8.2"
-            special-release: default-latest #default = best for PM5, latest = display as latest on GitHub 
+            special-release: default-latest
           - pm-version-major: 5
             php-version-base: "8.3"
           - pm-version-major: 5
@@ -36,7 +36,6 @@ jobs:
       php-version-base: ${{ matrix.php-version-base }}
       special-release: ${{ matrix.special-release || 'none' }}
       pm-preview: ${{ matrix.pm-preview || false }}
-    secrets: inherit
 
   publish-archive-release:
     name: Publish archive release
@@ -44,9 +43,14 @@ jobs:
     runs-on: ubuntu-22.04
     if: ${{ github.ref_name == 'stable' && github.ref_type == 'branch' && !contains(github.event.head_commit.message, '[no release]') }}
 
+    permissions:
+      contents: write
+
     steps:
+      - uses: actions/checkout@v7
+
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           path: ${{ github.workspace }}
 
@@ -60,7 +64,7 @@ jobs:
           echo -e "\n\n\n" >> changelog.md
 
       - name: Create release
-        uses: ncipollo/release-action@v1.20.0
+        uses: ncipollo/release-action@v1
         with:
           artifacts: |
             ${{ github.workspace }}/*PHP-*-PM*/*.tar.gz

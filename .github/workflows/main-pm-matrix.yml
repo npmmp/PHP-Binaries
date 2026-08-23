@@ -27,9 +27,12 @@ jobs:
   android:
     name: Android arm64
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
       - name: Install tools and dependencies
         run: |
@@ -38,22 +41,23 @@ jobs:
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v7
         with:
           path: ./download_cache
-          key: compile-sh-cache-ssl-https-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-ssl-https-
+          key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-${{ runner.os }}-
 
       - name: Fetch compiler cache
         id: compiler-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v7
         with:
           path: ${{ github.workspace }}/compiler
           key: musl-cross-make-${{ env.MUSL_CROSS_MAKE_VERSION }}
+          restore-keys: musl-cross-make-
 
       - name: Checkout musl-cross-make
         if: steps.compiler-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: pmmp/musl-cross-make
           path: musl-cross-make
@@ -71,20 +75,17 @@ jobs:
       - name: Compile PHP
         run: |
           export PATH="${{ github.workspace }}/compiler/bin:$PATH"
-
-          # Used "set -ex" instead of hashbang since script isn't executed with hashbang
           set -ex
           trap "exit 1" ERR
           ./compile.sh -t android-aarch64 -x -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
-        
-      
+
       - name: Create tarball
         run: |
           tar -czf ./PHP-${{ inputs.php-version-base }}-Android-arm64-PM${{ inputs.pm-version-major }}.tar.gz bin
           tar -czf ./Z-PHP-${{ inputs.php-version-base }}-Android-arm64-PM${{ inputs.pm-version-major }}-debugging-symbols.tar.gz bin-debug
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: PHP-${{ inputs.php-version-base }}-Android-PM${{ inputs.pm-version-major }}
@@ -93,26 +94,31 @@ jobs:
             install.log
             compile.sh
           if-no-files-found: error
+          retention-days: 30
 
       - name: Prepare workspace for upload
         if: failure()
         run: tar -czf workspace.tar.gz install_data
 
       - name: Upload workspace
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: PHP-${{ inputs.php-version-base }}-Android-workspace-PM${{ inputs.pm-version-major }}
           path: |
             workspace.tar.gz
           if-no-files-found: error
+          retention-days: 7
 
   linux:
-    name: Linux
+    name: Linux x86_64
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
       - name: Install tools and dependencies
         run: |
@@ -121,18 +127,17 @@ jobs:
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v7
         with:
           path: ./download_cache
-          key: compile-sh-cache-ssl-https-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-ssl-https-
+          key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-${{ runner.os }}-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: |
-          # Used "set -ex" instead of hashbang since script isn't executed with hashbang
           set -ex
           trap "exit 1" ERR
-          ./compile.sh -t linux64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
+          ./compile.sh -t linux64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
 
       - name: Create tarball
         run: |
@@ -140,116 +145,186 @@ jobs:
           tar -czf ./Z-PHP-${{ inputs.php-version-base }}-Linux-x86_64-PM${{ inputs.pm-version-major }}-debugging-symbols.tar.gz bin-debug
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: PHP-${{ inputs.php-version-base }}-Linux-PM${{ inputs.pm-version-major }}
+          name: PHP-${{ inputs.php-version-base }}-Linux-x86_64-PM${{ inputs.pm-version-major }}
           path: |
             ./*PHP-${{ inputs.php-version-base }}-Linux-x86_64-PM${{ inputs.pm-version-major }}*.tar.gz
             install.log
             compile.sh
           if-no-files-found: error
+          retention-days: 30
 
       - name: Prepare workspace for upload
         if: failure()
         run: tar -czf workspace.tar.gz install_data
 
       - name: Upload workspace
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: PHP-${{ inputs.php-version-base }}-Linux-workspace-PM${{ inputs.pm-version-major }}
+          name: PHP-${{ inputs.php-version-base }}-Linux-x86_64-workspace-PM${{ inputs.pm-version-major }}
           path: |
             workspace.tar.gz
           if-no-files-found: error
+          retention-days: 7
+
+  linux-arm64:
+    name: Linux ARM64
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Install tools and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install make autoconf automake libtool libtool-bin m4 wget libc-bin gzip bzip2 bison g++ git re2c
+
+      - name: Prepare compile.sh download cache
+        id: download-cache
+        uses: actions/cache@v7
+        with:
+          path: ./download_cache
+          key: compile-sh-cache-${{ runner.os }}-arm64-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-${{ runner.os }}-arm64-
+
+      - name: Compile PHP with PGO
+        run: |
+          set -ex
+          trap "exit 1" ERR
+          ./compile.sh -t linux-arm64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
+
+      - name: Create tarball
+        run: |
+          tar -czf ./PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}.tar.gz bin
+          tar -czf ./Z-PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}-debugging-symbols.tar.gz bin-debug
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}
+          path: |
+            ./*PHP-${{ inputs.php-version-base }}-Linux-arm64-PM${{ inputs.pm-version-major }}*.tar.gz
+            install.log
+            compile.sh
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Prepare workspace for upload
+        if: failure()
+        run: tar -czf workspace.tar.gz install_data
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: PHP-${{ inputs.php-version-base }}-Linux-arm64-workspace-PM${{ inputs.pm-version-major }}
+          path: |
+            workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
   macos:
     name: MacOS ${{ matrix.artifact-name }}
     runs-on: ${{ matrix.image }}
+    timeout-minutes: 180
     strategy:
       matrix:
         include:
           - target-name: mac-x86-64
             artifact-name: x86_64
-            image: macos-15-intel
+            image: macos-15
           - target-name: mac-arm64
             artifact-name: arm64
             image: macos-15
 
     steps:
-      - uses: actions/checkout@v5
-      
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
       - name: Install tools and dependencies
         run: |
-          #workaround github actions default image providing outdated pkg-config
           brew uninstall --ignore-dependencies --force pkg-config@0.29.2 || true
           brew install libtool autoconf automake pkg-config bison re2c
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v7
         with:
           path: ./download_cache
-          key: compile-sh-cache-ssl-https-${{ hashFiles('./compile.sh') }}
-          restore-keys: compile-sh-cache-ssl-https-
+          key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
+          restore-keys: compile-sh-cache-${{ runner.os }}-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: |
           export PATH="/usr/local/opt/bison/bin:$PATH"
           set -ex
           trap "exit 1" ERR
-          ./compile.sh -t ${{ matrix.target-name }} -j4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
-          
+          ./compile.sh -t ${{ matrix.target-name }} -j4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
+
       - name: Create tarball
         run: |
           tar -czf ./PHP-${{ inputs.php-version-base }}-MacOS-${{ matrix.artifact-name }}-PM${{ inputs.pm-version-major }}.tar.gz bin
           tar -czf ./Z-PHP-${{ inputs.php-version-base }}-MacOS-${{ matrix.artifact-name }}-PM${{ inputs.pm-version-major }}-debugging-symbols.tar.gz bin-debug
-        
+
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: PHP-${{ inputs.php-version-base }}-MacOS-${{ matrix.artifact-name }}-PM${{ inputs.pm-version-major }}
           path: |
-            ./*PHP-${{ inputs.php-version-base }}-MacOS-${{ matrix.artifact-name}}-PM${{ inputs.pm-version-major }}*.tar.gz
+            ./*PHP-${{ inputs.php-version-base }}-MacOS-${{ matrix.artifact-name }}-PM${{ inputs.pm-version-major }}*.tar.gz
             install.log
             compile.sh
           if-no-files-found: error
+          retention-days: 30
 
       - name: Prepare workspace for upload
         if: failure()
         run: tar -czf workspace.tar.gz install_data
 
       - name: Upload workspace
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: PHP-${{ inputs.php-version-base }}-MacOS-${{ matrix.artifact-name }}-workspace-PM${{ inputs.pm-version-major }}
           path: |
             workspace.tar.gz
           if-no-files-found: error
+          retention-days: 7
 
   windows:
     name: Windows
     runs-on: windows-2022
+    timeout-minutes: 240
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
       - name: Prepare download cache
         id: download-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v7
         with:
           path: ./download_cache
-          key: windows-cache-${{ hashFiles('./windows-compile-vs.ps1') }}
-          restore-keys: windows-cache-
+          key: windows-cache-${{ runner.os }}-${{ hashFiles('./windows-compile-vs.ps1') }}
+          restore-keys: windows-cache-${{ runner.os }}-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: .\windows-compile-vs.ps1
         env:
           SOURCES_PATH: ${{ github.workspace }}\pocketmine-php-sdk
           PM_VERSION_MAJOR: ${{ inputs.pm-version-major }}
           PHP_VERSION_BASE: ${{ inputs.php-version-base }}
+          PHP_PGO: 1
 
       - name: Prepare artifacts
         run: |
@@ -259,7 +334,7 @@ jobs:
           move temp\*.zip .
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: PHP-${{ inputs.php-version-base }}-Windows-PM${{ inputs.pm-version-major }}
@@ -268,11 +343,11 @@ jobs:
             compile.log
             windows-compile-vs.bat
           if-no-files-found: error
-
+          retention-days: 30
 
   publish:
     name: Publish binaries
-    needs: [linux, macos, windows, android]
+    needs: [linux, linux-arm64, macos, windows, android]
     runs-on: ubuntu-22.04
     if: ${{ github.ref_name == 'stable' && github.ref_type == 'branch' && !contains(github.event.head_commit.message, '[no release]') }}
     concurrency: release-${{ inputs.php-version-base }}-pm${{ inputs.pm-version-major }}
@@ -281,7 +356,9 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
       - name: Update latest tag target
         run: |
@@ -291,7 +368,7 @@ jobs:
           git push -f origin pm${{ inputs.pm-version-major }}-latest
 
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           path: ${{ github.workspace }}
           pattern: "*PHP-${{ inputs.php-version-base }}-*-PM${{ inputs.pm-version-major }}"
@@ -301,11 +378,12 @@ jobs:
           curl -L https://raw.githubusercontent.com/php/php-src/refs/heads/PHP-${{ inputs.php-version-base }}/.gdbinit -o Z-PHP-${{ inputs.php-version-base }}.gdbinit
 
       - name: Upload .gdbinit artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: PHP-${{ inputs.php-version-base }}.gdbinit
           path: |
             ${{ github.workspace }}/*.gdbinit
+          retention-days: 30
 
       - name: Generate release notes
         run: |
@@ -317,6 +395,8 @@ jobs:
           echo -e "\n\n\n" >> changelog.md
           echo ":information_source: **Linux/MacOS users**: Please see [this page](https://doc.pmmp.io/en/rtfd/faq/installation/opcache.so.html) to fix extension loading errors. Also, check out the [PocketMine-MP Linux/MacOS installer](https://doc.pmmp.io/en/rtfd/installation/get-dot-pmmp-dot-io.html)." >> changelog.md
           echo ":warning: **Windows users**: Don't forget to install [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) or the binary will not work!" >> changelog.md
+          echo -e "\n\n\n" >> changelog.md
+          echo ":zap: **Performance**: This build includes ThinLTO, AVX2, PGO (Profile-Guided Optimization), and JIT enabled by default." >> changelog.md
           echo -e "\n\n\n" >> changelog.md
 
           if [[ "${{ inputs.special-release }}" != "none" ]]; then
@@ -333,7 +413,7 @@ jobs:
           echo DATE=$(date -u +'%d %b %Y') >> $GITHUB_OUTPUT
 
       - name: Update recommended PM release
-        uses: ncipollo/release-action@v1.20.0
+        uses: ncipollo/release-action@v1
         if: ${{ inputs.special-release != 'none' }}
         with:
           artifacts: |
@@ -350,7 +430,7 @@ jobs:
           prerelease: ${{ inputs.pm-preview == true }}
 
       - name: Update php-version PM release
-        uses: ncipollo/release-action@v1.20.0
+        uses: ncipollo/release-action@v1
         with:
           artifacts: |
             ${{ github.workspace }}/*PHP-*-PM*/*.tar.gz
@@ -364,4 +444,3 @@ jobs:
           bodyFile: ${{ github.workspace }}/changelog.md
           makeLatest: false
           prerelease: ${{ inputs.pm-preview == true }}
-

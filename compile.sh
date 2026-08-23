@@ -579,6 +579,13 @@ if [ "$DO_OPTIMIZE" != "no" ]; then
 			write_out "INFO" "Link-Time Optimization (ThinLTO) enabled"
 		fi
 	fi
+
+	# PGO and LTO are incompatible during the instrumented build step.
+	# Disable LTO when PGO is enabled so configure doesn't bake it into the Makefile.
+	if [ "$DO_PGO" == "yes" ] && [ "$FLAGS_LTO" != "" ]; then
+		write_out "INFO" "Disabling LTO for PGO build (LTO + PGO instrumentation are incompatible)"
+		FLAGS_LTO=""
+	fi
 fi
 
 if [ "$FSANITIZE_OPTIONS" != "" ]; then

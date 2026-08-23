@@ -7,9 +7,9 @@ $PHP_SDK_VER="2.4.0"
 $ARCH="x64"
 
 # PGO support - set to 1 to enable Profile-Guided Optimization
-$PHP_PGO=1
-if ($env:PHP_PGO -eq 0) {
-    $PHP_PGO=0
+$PHP_PGO=0
+if ($env:PHP_PGO -eq 1) {
+    $PHP_PGO=1
 }
 
 #### NOTE: Tags with "v" prefixes behave weirdly in the GitHub API. They'll be stripped in some places but not others.

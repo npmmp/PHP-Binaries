@@ -647,13 +647,15 @@ sdk-command "configure^`
     --without-readline $pgo_generate_flag"
 
 write-compile
-# Patch the Makefile to add brotli libraries to the link command
+# Patch the Makefile to add brotli libraries to the link command for PHP 8.2+
 # PHP's configure doesn't know about brotli (it's a curl dependency), so we need
 # to inject brotlidec.lib and brotlicommon.lib into the link command
-$sdk_patch_cmd = @"
+if ($PHP_VERSION_ID -ge 80200) {
+    $sdk_patch_cmd = @"
 powershell -NoProfile -Command "Get-ChildItem -Path . -Filter 'Makefile' -Recurse | Select-Object -First 1 | ForEach-Object { `$c = Get-Content `$_.FullName -Raw; `$c = `$c.Replace('libcurl_a.lib ', 'libcurl_a.lib brotlidec.lib brotlicommon.lib '); Set-Content `$_.FullName -Value `$c; Write-Host 'Brotli libs patched in Makefile' }"
 "@
-sdk-command $sdk_patch_cmd
+    sdk-command $sdk_patch_cmd
+}
 sdk-command "nmake"
 
 if ($PHP_PGO -eq 1) {

@@ -599,8 +599,10 @@ sdk-command "configure^`
     --without-readline $pgo_generate_flag"
 
 write-compile
-# First nmake may fail due to missing Brotli libs - that's expected
-try { sdk-command "nmake" } catch { }
+# First nmake may fail due to missing Brotli libs - that's expected.
+# sdk-command calls pm-fatal-error (exit 1) on failure, so we pass
+# an error message to suppress the fatal error and continue.
+sdk-command "nmake" "First nmake completed (may have Brotli link errors)"
 
 # Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
 # library itself is not auto-linked. Patch Makefile and re-link.

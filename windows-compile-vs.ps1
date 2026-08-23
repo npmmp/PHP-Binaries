@@ -512,6 +512,23 @@ $DEPS_DIR="$BASE_PATH\deps-php-$PHP_VERSION_BASE-$($OUT_PATH_REL.ToLower())"
 #a bit annoying because this part of the build is slow and makes it take longer to find problems
 download-php-deps
 
+# Fix: PHP SDK deps for 8.2+ include libcurl built with Brotli support,
+# but the Brotli libraries aren't in the deps lib dir where the linker expects them.
+# Copy them from the brotli package to the deps lib dir.
+if ($PHP_VERSION_BASE -ge "8.2") {
+    $brotli_search = Get-ChildItem -Path "$DEPS_DIR" -Filter "libbrotlidec*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $brotli_search) {
+        $brotli_pkg = Get-ChildItem -Path "$DEPS_DIR" -Filter "brotli*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($brotli_pkg) {
+            $brotli_dir = $brotli_pkg.DirectoryName
+            Get-ChildItem -Path $brotli_dir -Filter "*.lib" -ErrorAction SilentlyContinue | ForEach-Object {
+                Copy-Item $_.FullName "$DEPS_DIR\lib\" -Force >> $log_file 2>&1
+                pm-echo "Copied $($_.Name) to deps lib directory"
+            }
+        }
+    }
+}
+
 mkdir $LIB_BUILD_DIR >> $log_file 2>&1
 cd $LIB_BUILD_DIR >> $log_file 2>&1
 

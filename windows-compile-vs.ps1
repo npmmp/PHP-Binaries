@@ -600,12 +600,19 @@ sdk-command "configure^`
 
 # Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
 # library itself is not auto-linked by PHP's configure. Add it to the Makefile.
-$php_makefile = "$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS\php-$PHP_DISPLAY_VER\Makefile"
+$php_build_dir = "$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS"
+$php_makefile = "$php_build_dir\Makefile"
 if (Test-Path $php_makefile) {
     $content = Get-Content $php_makefile -Raw
-    $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
-    Set-Content $php_makefile -Value $content
-    pm-echo "Added Brotli libraries to Makefile link command"
+    if ($content -match 'libcurl_a\.lib') {
+        $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
+        Set-Content $php_makefile -Value $content
+        pm-echo "Added Brotli libraries to Makefile link command"
+    } else {
+        pm-echo "[WARNING] libcurl_a.lib not found in Makefile, Brotli fix skipped"
+    }
+} else {
+    pm-echo "[WARNING] Makefile not found at $php_makefile, Brotli fix skipped"
 }
 
 write-compile
@@ -692,7 +699,7 @@ if ($PHP_PGO -eq 1) {
     # Fix Brotli libraries for PGO rebuild too
     if (Test-Path $php_makefile) {
         $content = Get-Content $php_makefile -Raw
-        if ($content -notmatch 'libbrotlidec') {
+        if ($content -match 'libcurl_a\.lib' -and $content -notmatch 'libbrotlidec') {
             $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
             Set-Content $php_makefile -Value $content
             pm-echo "Added Brotli libraries to Makefile (PGO rebuild)"

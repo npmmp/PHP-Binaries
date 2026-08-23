@@ -41,7 +41,7 @@ jobs:
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v6
         with:
           path: ./download_cache
           key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
@@ -49,7 +49,7 @@ jobs:
 
       - name: Fetch compiler cache
         id: compiler-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/compiler
           key: musl-cross-make-${{ env.MUSL_CROSS_MAKE_VERSION }}
@@ -127,7 +127,7 @@ jobs:
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v6
         with:
           path: ./download_cache
           key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
@@ -187,7 +187,7 @@ jobs:
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v6
         with:
           path: ./download_cache
           key: compile-sh-cache-${{ runner.os }}-arm64-${{ hashFiles('./compile.sh') }}
@@ -256,7 +256,7 @@ jobs:
 
       - name: Prepare compile.sh download cache
         id: download-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v6
         with:
           path: ./download_cache
           key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
@@ -312,7 +312,7 @@ jobs:
 
       - name: Prepare download cache
         id: download-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v6
         with:
           path: ./download_cache
           key: windows-cache-${{ runner.os }}-${{ hashFiles('./windows-compile-vs.ps1') }}

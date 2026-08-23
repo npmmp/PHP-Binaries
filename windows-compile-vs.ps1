@@ -598,12 +598,15 @@ sdk-command "configure^`
     --with-pdo-sqlite^`
     --without-readline $pgo_generate_flag"
 
-# Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
-# library itself is not auto-linked by PHP's configure. Patch the Makefile inside the SDK.
-$sdk_brotli_cmd = "powershell -NoProfile -Command `"Get-ChildItem -Path . -Filter 'Makefile' -Recurse | ForEach-Object { `$c = Get-Content `$_.FullName -Raw; if (`$c -match 'libcurl_a\.lib') { `$c = `$c.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib'); Set-Content `$_.FullName -Value `$c; Write-Output 'Brotli libs patched' } }`""
-sdk-command $sdk_brotli_cmd
-
 write-compile
+sdk-command "nmake"
+
+# Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
+# library itself is not auto-linked by PHP's configure. This causes LNK2001 errors
+# for BrotliDecoderVersion etc. We patch the Makefile AFTER nmake first builds
+# the object files, then re-run nmake to link successfully.
+$sdk_brotli_cmd = "cmd /c `"powershell -NoProfile -Command `"Get-ChildItem -Path . -Filter Makefile -Recurse | ForEach-Object { `$c = Get-Content `$_.FullName -Raw; if (`$c -match 'libcurl_a\.lib') { `$c = `$c.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib'); Set-Content `$_.FullName -Value `$c; Write-Host BrotliLibsPatched } }`"`""
+sdk-command $sdk_brotli_cmd
 sdk-command "nmake"
 
 if ($PHP_PGO -eq 1) {

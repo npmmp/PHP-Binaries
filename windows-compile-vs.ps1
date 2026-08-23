@@ -513,21 +513,46 @@ $DEPS_DIR="$BASE_PATH\deps-php-$PHP_VERSION_BASE-$($OUT_PATH_REL.ToLower())"
 download-php-deps
 
 # Fix: PHP SDK deps for 8.2+ include libcurl built with Brotli support, but
-# phpsdk_deps extracts brotli to deps/brotli-X.Y.Z-vs16-x64/lib/ while
-# PHP's linker only searches deps/lib/. Copy brotli .lib files to deps/lib/.
+# phpsdk_deps extracts brotli to its own subdirectory, not deps/lib/.
+# Download brotli directly and extract .lib files to deps/lib/.
 if ([int]($PHP_VERSION_BASE -replace '\..*') -ge 8 -and [int]($PHP_VERSION_BASE -replace '\d+\.') -ge 2) {
-    $brotli_dirs = Get-ChildItem -Path $DEPS_DIR -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "brotli" }
-    foreach ($dir in $brotli_dirs) {
-        $libDir = Join-Path $dir.FullName "lib"
-        if (Test-Path $libDir) {
-            Get-ChildItem -Path $libDir -Filter "*.lib" -ErrorAction SilentlyContinue | ForEach-Object {
-                $dest = Join-Path "$DEPS_DIR\lib" $_.Name
+    $brotli_url = "https://windows.php.net/downloads/php-sdk/deps/vs16/x64/brotli-1.2.0-vs16-x64.zip"
+    $brotli_dest = "$DEPS_DIR\brotli-temp"
+    $found = Get-ChildItem -Path "$DEPS_DIR\lib" -Filter "libbrotlidec*" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $found) {
+        pm-echo "Downloading brotli library for Brotli support in curl..."
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            $wc = New-Object System.Net.WebClient
+            $wc.DownloadFile($brotli_url, "$DEPS_DIR\brotli-temp.zip")
+            Expand-Archive -Path "$DEPS_DIR\brotli-temp.zip" -DestinationPath $brotli_dest -Force
+            # Copy all .lib files from brotli extraction to deps/lib
+            Get-ChildItem -Path $brotli_dest -Filter "*.lib" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                $dest = "$DEPS_DIR\lib\$($_.Name)"
                 if (-not (Test-Path $dest)) {
                     Copy-Item $_.FullName $dest -Force >> $log_file 2>&1
-                    pm-echo "Copied $($_.Name) from $($dir.Name) to deps/lib"
+                    pm-echo "Copied $($_.Name) to deps/lib"
                 }
             }
+            # Also copy .dll files to deps/bin
+            Get-ChildItem -Path $brotli_dest -Filter "*.dll" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                $dest = "$DEPS_DIR\bin\$($_.Name)"
+                if (-not (Test-Path $dest)) {
+                    Copy-Item $_.FullName $dest -Force >> $log_file 2>&1
+                }
+            }
+            # Copy headers to deps/include
+            if (Test-Path "$brotli_dest\include") {
+                Copy-Item "$brotli_dest\include\*" "$DEPS_DIR\include\" -Recurse -Force >> $log_file 2>&1
+            }
+            pm-echo "Brotli library installed to deps"
+        } catch {
+            pm-echo "[WARNING] Failed to download/install brotli: $_"
         }
+        Remove-Item "$DEPS_DIR\brotli-temp.zip" -Force -ErrorAction SilentlyContinue
+        Remove-Item $brotli_dest -Recurse -Force -ErrorAction SilentlyContinue
+    } else {
+        pm-echo "Brotli already in deps/lib"
     }
 }
 

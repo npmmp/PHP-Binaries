@@ -6,6 +6,12 @@ $PHP_VERSIONS=@("8.1.34", "8.2.30", "8.3.29", "8.4.16", "8.5.0")
 $PHP_SDK_VER="2.4.0"
 $ARCH="x64"
 
+# PGO support - set to 1 to enable Profile-Guided Optimization
+$PHP_PGO=1
+if ($env:PHP_PGO -eq 0) {
+    $PHP_PGO=0
+}
+
 #### NOTE: Tags with "v" prefixes behave weirdly in the GitHub API. They'll be stripped in some places but not others.
 #### Use commit hashes to avoid this.
 
@@ -520,6 +526,15 @@ cd "$SOURCES_PATH"
 write-library "PHP" $PHP_VER
 write-configure
 
+$pgo_generate_flag=""
+$pgo_use_flag=""
+$pgo_training_done=0
+
+if ($PHP_PGO -eq 1) {
+    pm-echo "PGO enabled: will build instrumented PHP, run training, then rebuild with profile"
+    $pgo_generate_flag="--enable-pgo-generate"
+}
+
 sdk-command "buildconf.bat"
 sdk-command "configure^`
     --with-mp=auto^`
@@ -581,10 +596,92 @@ sdk-command "configure^`
     --with-yaml^`
     --with-pdo-mysql^`
     --with-pdo-sqlite^`
-    --without-readline"
+    --without-readline $pgo_generate_flag"
 
 write-compile
 sdk-command "nmake"
+
+if ($PHP_PGO -eq 1) {
+    # Step 2: Run training on instrumented build
+    pm-echo "PGO: Running training workload on instrumented PHP"
+    $php_bin = "$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS\php-$PHP_DISPLAY_VER\php.exe"
+    if (Test-Path $php_bin) {
+        # Run basic training workload
+        & $php_bin -r "for(`$i=0;`$i<10000;`$i++){echo serialize(range(1,100));}" >> $log_file 2>&1
+        & $php_bin -r "for(`$i=0;`$i<10000;`$i++){gzcompress(str_repeat('x',1000));}" >> $log_file 2>&1
+        & $php_bin -r "for(`$i=0;`$i<10000;`$i++){sha256('test'.`$i);}" >> $log_file 2>&1
+        pm-echo "PGO: Training complete"
+    } else {
+        pm-echo "[WARNING] PHP binary not found for PGO training, skipping profile generation"
+    }
+
+    # Step 3: Rebuild with profile data
+    pm-echo "PGO: Rebuilding with profile data"
+    $pgo_use_flag="--enable-pgo-use"
+    sdk-command "configure^`
+        --with-mp=auto^`
+        --with-prefix=pocketmine-php-bin^`
+        --with-php-build=`"$DEPS_DIR`"^`
+        --$PHP_HAVE_DEBUG^`
+        --disable-all^`
+        --disable-cgi^`
+        --enable-cli^`
+        --enable-zts^`
+        --enable-pdo^`
+        --enable-arraydebug=shared^`
+        --enable-bcmath^`
+        --enable-calendar^`
+        --enable-chunkutils2=shared^`
+        --enable-com-dotnet^`
+        --enable-ctype^`
+        --enable-encoding=shared^`
+        --enable-fileinfo=shared^`
+        --enable-filter^`
+        --enable-hash^`
+        --enable-igbinary=shared^`
+        --enable-json^`
+        --enable-mbstring^`
+        --enable-morton^`
+        --enable-opcache^`
+        --enable-opcache-jit=$PHP_JIT_ENABLE_ARG^`
+        --enable-phar^`
+        --enable-recursionguard=shared^`
+        --enable-sockets^`
+        --enable-tokenizer^`
+        --enable-xmlreader^`
+        --enable-xmlwriter^`
+        --enable-xxhash^`
+        --enable-zip^`
+        --enable-zlib^`
+        --with-bz2=shared^`
+        --with-crypto=shared^`
+        --with-curl^`
+        --with-dom^`
+        --with-gd=shared^`
+        --with-gmp^`
+        --with-iconv^`
+        --with-leveldb=shared^`
+        --with-libdeflate=shared^`
+        --with-libxml^`
+        --with-mysqli=shared^`
+        --with-mysqlnd^`
+        --with-openssl^`
+        --with-pcre-jit^`
+        --with-pmmpthread=shared^`
+        --with-pmmpthread-sockets^`
+        --with-simplexml^`
+        --with-sodium^`
+        --with-sqlite3=shared^`
+        --with-xdebug=shared^`
+        --with-xdebug-compression^`
+        --with-xml^`
+        --with-yaml^`
+        --with-pdo-mysql^`
+        --with-pdo-sqlite^`
+        --without-readline $pgo_use_flag"
+    sdk-command "nmake"
+    pm-echo "PGO: Optimized build complete"
+}
 
 write-install
 sdk-command "nmake snap"

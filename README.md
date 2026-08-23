@@ -12,12 +12,14 @@ Esta versión incluye las siguientes optimizaciones para mejorar el rendimiento 
 | **ThinLTO** | +2-4% | Link-Time Optimization con soporte paralelo (menor tiempo de compilación que LTO completo) |
 | **AVX2** | +0-18% (zlib) | Instrucciones SIMD para operaciones de compresión y hashing (Linux x86_64) |
 | **JIT habilitado** | +10-20% (loops) | Just-In-Time compilation habilitado por defecto en PHP 8.4+ |
-| **PGO** | +7-30% | Profile-Guided Optimization (opcional, requiere `-O` flag) |
+| **PGO** | +7-30% | Profile-Guided Optimization (habilitado por defecto en CI) |
 | **Linux ARM64** | Nuevo | Soporte nativo para AWS Graviton, Raspberry Pi 4/5 |
 
-### Uso de PGO (Profile-Guided Optimization)
+> **Nota**: Los binarios precompilados en GitHub Releases ya incluyen todas estas optimizaciones automáticamente. PGO está habilitado por defecto en los builds de CI.
 
-PGO compila PHP dos veces: primero con instrumentación, luego con datos de perfil reales.
+### Compilación local con PGO
+
+Si compilas localmente, PGO no está habilitado por defecto (porque triple el tiempo de build). Para habilitarlo:
 
 ```bash
 # Compilar con PGO usando el script de training incluido

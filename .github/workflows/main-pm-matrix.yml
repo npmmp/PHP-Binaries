@@ -27,7 +27,7 @@ jobs:
   android:
     name: Android arm64
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v5
@@ -79,6 +79,7 @@ jobs:
           # Used "set -ex" instead of hashbang since script isn't executed with hashbang
           set -ex
           trap "exit 1" ERR
+          # PGO not supported for cross-compile (Android), build without it
           ./compile.sh -t android-aarch64 -x -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
         
     
@@ -116,7 +117,7 @@ jobs:
   linux:
     name: Linux
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v5
@@ -136,12 +137,13 @@ jobs:
           key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
           restore-keys: compile-sh-cache-${{ runner.os }}-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: |
           # Used "set -ex" instead of hashbang since script isn't executed with hashbang
           set -ex
           trap "exit 1" ERR
-          ./compile.sh -t linux64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
+          # PGO enabled: builds instrumented PHP, runs training, then rebuilds with profile data
+          ./compile.sh -t linux64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
 
       - name: Create tarball
         run: |
@@ -177,7 +179,7 @@ jobs:
   linux-arm64:
     name: Linux ARM64
     runs-on: ubuntu-22.04-arm
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v5
@@ -197,11 +199,12 @@ jobs:
           key: compile-sh-cache-${{ runner.os }}-arm64-${{ hashFiles('./compile.sh') }}
           restore-keys: compile-sh-cache-${{ runner.os }}-arm64-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: |
           set -ex
           trap "exit 1" ERR
-          ./compile.sh -t linux-arm64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
+          # PGO enabled: builds instrumented PHP, runs training, then rebuilds with profile data
+          ./compile.sh -t linux-arm64 -j 4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
 
       - name: Create tarball
         run: |
@@ -237,7 +240,7 @@ jobs:
   macos:
     name: MacOS ${{ matrix.artifact-name }}
     runs-on: ${{ matrix.image }}
-    timeout-minutes: 90
+    timeout-minutes: 180
     strategy:
       matrix:
         include:
@@ -267,12 +270,13 @@ jobs:
           key: compile-sh-cache-${{ runner.os }}-${{ hashFiles('./compile.sh') }}
           restore-keys: compile-sh-cache-${{ runner.os }}-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: |
           export PATH="/usr/local/opt/bison/bin:$PATH"
           set -ex
           trap "exit 1" ERR
-          ./compile.sh -t ${{ matrix.target-name }} -j4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }}
+          # PGO enabled: builds instrumented PHP, runs training, then rebuilds with profile data
+          ./compile.sh -t ${{ matrix.target-name }} -j4 -g -P ${{ inputs.pm-version-major }} -c ./download_cache -D -z ${{ inputs.php-version-base }} -O ./pgo-training.sh
           
       - name: Create tarball
         run: |
@@ -308,7 +312,7 @@ jobs:
   windows:
     name: Windows
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 240
 
     steps:
       - uses: actions/checkout@v5
@@ -323,12 +327,13 @@ jobs:
           key: windows-cache-${{ runner.os }}-${{ hashFiles('./windows-compile-vs.ps1') }}
           restore-keys: windows-cache-${{ runner.os }}-
 
-      - name: Compile PHP
+      - name: Compile PHP with PGO
         run: .\windows-compile-vs.ps1
         env:
           SOURCES_PATH: ${{ github.workspace }}\pocketmine-php-sdk
           PM_VERSION_MAJOR: ${{ inputs.pm-version-major }}
           PHP_VERSION_BASE: ${{ inputs.php-version-base }}
+          PHP_PGO: 1
 
       - name: Prepare artifacts
         run: |
@@ -401,7 +406,7 @@ jobs:
           echo ":information_source: **Linux/MacOS users**: Please see [this page](https://doc.pmmp.io/en/rtfd/faq/installation/opcache.so.html) to fix extension loading errors. Also, check out the [PocketMine-MP Linux/MacOS installer](https://doc.pmmp.io/en/rtfd/installation/get-dot-pmmp-dot-io.html)." >> changelog.md
           echo ":warning: **Windows users**: Don't forget to install [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) or the binary will not work!" >> changelog.md
           echo -e "\n\n\n" >> changelog.md
-          echo ":zap: **Performance**: This build includes ThinLTO, AVX2 optimizations, and JIT enabled by default." >> changelog.md
+          echo ":zap: **Performance**: This build includes ThinLTO, AVX2, PGO (Profile-Guided Optimization), and JIT enabled by default." >> changelog.md
           echo -e "\n\n\n" >> changelog.md
 
           if [[ "${{ inputs.special-release }}" != "none" ]]; then

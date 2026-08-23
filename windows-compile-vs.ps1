@@ -599,21 +599,9 @@ sdk-command "configure^`
     --without-readline $pgo_generate_flag"
 
 # Fix: PHP SDK deps include libcurl_a.lib built with Brotli support, but the Brotli
-# library itself is not auto-linked by PHP's configure. Add it to the Makefile.
-$php_build_dir = "$SOURCES_PATH\$ARCH\$($OUT_PATH_REL)_TS"
-$php_makefile = "$php_build_dir\Makefile"
-if (Test-Path $php_makefile) {
-    $content = Get-Content $php_makefile -Raw
-    if ($content -match 'libcurl_a\.lib') {
-        $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
-        Set-Content $php_makefile -Value $content
-        pm-echo "Added Brotli libraries to Makefile link command"
-    } else {
-        pm-echo "[WARNING] libcurl_a.lib not found in Makefile, Brotli fix skipped"
-    }
-} else {
-    pm-echo "[WARNING] Makefile not found at $php_makefile, Brotli fix skipped"
-}
+# library itself is not auto-linked by PHP's configure. Patch the Makefile inside the SDK.
+$sdk_brotli_cmd = "powershell -NoProfile -Command `"Get-ChildItem -Path . -Filter 'Makefile' -Recurse | ForEach-Object { `$c = Get-Content `$_.FullName -Raw; if (`$c -match 'libcurl_a\.lib') { `$c = `$c.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib'); Set-Content `$_.FullName -Value `$c; Write-Output 'Brotli libs patched' } }`""
+sdk-command $sdk_brotli_cmd
 
 write-compile
 sdk-command "nmake"
@@ -697,14 +685,7 @@ if ($PHP_PGO -eq 1) {
         --with-pdo-sqlite^`
         --without-readline $pgo_use_flag"
     # Fix Brotli libraries for PGO rebuild too
-    if (Test-Path $php_makefile) {
-        $content = Get-Content $php_makefile -Raw
-        if ($content -match 'libcurl_a\.lib' -and $content -notmatch 'libbrotlidec') {
-            $content = $content.Replace('libcurl_a.lib', 'libcurl_a.lib libbrotlidec.lib libbrotlicommon.lib')
-            Set-Content $php_makefile -Value $content
-            pm-echo "Added Brotli libraries to Makefile (PGO rebuild)"
-        }
-    }
+    sdk-command $sdk_brotli_cmd
     sdk-command "nmake"
     pm-echo "PGO: Optimized build complete"
 }
